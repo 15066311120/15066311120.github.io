@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自然之声</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: url('picture/鼠标.cur') 0 0, auto;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .background {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            transition: filter 1.5s ease;
+        }
+
+        .background.darken {
+            filter: brightness(0.3);
+        }
+
+        .foreground {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 2;
+            transition: transform 1.5s ease;
+        }
+
+        .foreground.zoom {
+            transform: scale(2.5);
+        }
+
+        .start-button {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            font-size: 32px;
+            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid white;
+            border-radius: 10px;
+            z-index: 3;
+            transition: all 0.5s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            cursor: url('picture/点击鼠标.cur'), pointer;
+            display: inline-block;
+            width: auto;
+            min-width: 200px;
+            text-align: center;
+        }
+
+        .start-button:hover {
+            background: rgba(0, 0, 0, 0.7);
+            transform: translate(-50%, -50%) scale(1.05);
+        }
+
+        .start-button.hide {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+            pointer-events: none;
+        }
+
+        .journey-image {
+            position: absolute;
+            width: 300px;
+            height: auto;
+            object-fit: contain;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            z-index: 4;
+            transition: opacity 1s ease, transform 0.3s ease;
+            transform-origin: top center;
+            cursor: url('picture/点击鼠标.cur'), pointer;
+            pointer-events: none;
+        }
+
+        .journey-image.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .journey-image:hover:not(.fall) {
+            animation: sway 1.5s ease-in-out infinite;
+        }
+
+        .journey-image.fall {
+            animation: fall 2s ease-in forwards;
+            pointer-events: none;
+        }
+
+        @keyframes sway {
+            0% {
+                transform: rotate(0deg);
+            }
+            25% {
+                transform: rotate(2deg);
+            }
+            75% {
+                transform: rotate(-2deg);
+            }
+            100% {
+                transform: rotate(0deg);
+            }
+        }
+
+        @keyframes fall {
+            0% {
+                transform: rotate(0deg);
+            }
+            20% {
+                transform: rotate(10deg);
+            }
+            40% {
+                transform: rotate(-10deg);
+            }
+            60% {
+                transform: rotate(5deg);
+            }
+            80% {
+                transform: rotate(-5deg);
+            }
+            100% {
+                transform: rotate(0deg) translateY(100vh);
+            }
+        }
+
+        .image-text {
+            position: absolute;
+            top: 15%;
+            left: 5%;
+            color: white;
+            font-size: 24px;
+            letter-spacing: 2px;
+            line-height: 1.5;
+            text-align: left;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                         0 0 20px rgba(255, 255, 255, 0.5),
+                         0 0 30px rgba(255, 255, 255, 0.3);
+            z-index: 4;
+            opacity: 0;
+            transition: opacity 1s ease;
+            width: 300px;
+        }
+
+        .image-text.show {
+            opacity: 1;
+        }
+
+        /* S形布局的6个位置 */
+        .journey-image:nth-child(1) {
+            top: 15%;
+            left: 5%;
+        }
+
+        .journey-image:nth-child(2) {
+            top: 15%;
+            left: 35%;
+        }
+
+        .journey-image:nth-child(3) {
+            top: 15%;
+            left: 65%;
+        }
+
+        .journey-image:nth-child(4) {
+            top: 55%;
+            left: 65%;
+        }
+
+        .journey-image:nth-child(5) {
+            top: 55%;
+            left: 35%;
+        }
+
+        .journey-image:nth-child(6) {
+            top: 55%;
+            left: 5%;
+        }
+
+        .leaf, .flower {
+            position: absolute;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .leaf {
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #7cba3c, #4a8c20);
+            transform-origin: center;
+        }
+
+        .leaf.triangle {
+            clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        }
+
+        .leaf.diamond {
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+
+        .leaf.parallelogram {
+            clip-path: polygon(25% 0%, 100% 0%, 75% 100%, 0% 100%);
+        }
+
+        .flower {
+            width: 20px;
+            height: 20px;
+            background: #ff69b4;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 105, 180, 0.5);
+        }
+
+        @keyframes fadeInOut {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0) rotate(0deg);
+            }
+            50% {
+                transform: translateY(-20px) rotate(180deg);
+            }
+            100% {
+                transform: translateY(0) rotate(360deg);
+            }
+        }
+
+        .continue-button {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 30px;
+            font-size: 24px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 10px;
+            cursor: url('picture/点击鼠标.cur'), pointer;
+            z-index: 5;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .continue-button.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .continue-button:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: translateY(-3px);
+        }
+
+        .fade-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 2s ease;
+        }
+
+        .fade-overlay.active {
+            opacity: 1;
+        }
+
+        .poetic-text {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 36px;
+            letter-spacing: 8px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                         0 0 20px rgba(255, 255, 255, 0.5),
+                         0 0 30px rgba(255, 255, 255, 0.3);
+            z-index: 3;
+            opacity: 0;
+            transition: opacity 1s ease;
+            animation: glow 6s ease-in-out infinite;
+        }
+
+        @keyframes glow {
+            0% {
+                text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                            0 0 20px rgba(255, 255, 255, 0.5),
+                            0 0 30px rgba(255, 255, 255, 0.3);
+            }
+            25% {
+                text-shadow: 0 0 15px rgba(255, 255, 255, 0.9),
+                            0 0 25px rgba(255, 255, 255, 0.7),
+                            0 0 35px rgba(255, 255, 255, 0.5);
+            }
+            50% {
+                text-shadow: 0 0 5px rgba(255, 255, 255, 0.4),
+                            0 0 10px rgba(255, 255, 255, 0.2),
+                            0 0 15px rgba(255, 255, 255, 0.1);
+            }
+            75% {
+                text-shadow: 0 0 15px rgba(255, 255, 255, 0.9),
+                            0 0 25px rgba(255, 255, 255, 0.7),
+                            0 0 35px rgba(255, 255, 255, 0.5);
+            }
+            100% {
+                text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                            0 0 20px rgba(255, 255, 255, 0.5),
+                            0 0 30px rgba(255, 255, 255, 0.3);
+            }
+        }
+
+        .poetic-text.show {
+            opacity: 1;
+        }
+
+        .large-image-container {
+            position: fixed;
+            bottom: -100%;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 50px;
+            z-index: 5;
+            transition: bottom 1s ease;
+        }
+
+        .large-image-container.show {
+            bottom: 0;
+        }
+
+        .large-image {
+            width: 35%;
+            height: auto;
+            object-fit: contain;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.7);
+            transform: translateY(100%) rotate(0deg);
+            transition: transform 1s ease;
+            margin-right: -50px;
+        }
+
+        .large-image-container.show .large-image {
+            transform: translateY(0) rotate(var(--tilt-angle));
+        }
+
+        .dialog-box {
+            width: 40%;
+            padding: 30px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid white;
+            border-radius: 15px;
+            color: white;
+            font-size: 24px;
+            line-height: 1.6;
+            text-align: left;
+            transform: translateY(100%);
+            transition: transform 1s ease;
+            opacity: 0;
+            margin-top: -100px;
+            margin-left: 80px;
+            min-height: 600px;
+            overflow: visible;
+            padding-bottom: 30px;
+        }
+
+        .question-box {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            min-height: 300px;
+        }
+
+        .question {
+            font-size: 20px;
+            margin-bottom: 15px;
+            color: #fff;
+            transition: opacity 0.5s ease;
+        }
+
+        .question.fade-out {
+            opacity: 0;
+        }
+
+        .option {
+            display: block;
+            margin: 10px 0;
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            cursor: url('picture/点击鼠标.cur'), pointer;
+            transition: all 0.5s ease;
+        }
+
+        .option:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateX(5px);
+        }
+
+        .option.selected {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            right: auto;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid white;
+            transform: translateY(0) !important;
+            z-index: 1;
+            margin-bottom: 0;
+            padding-bottom: 30px;
+        }
+
+        .option.selected::after {
+            content: attr(data-analysis);
+            display: block;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 18px;
+            line-height: 1.6;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.5s ease;
+            max-height: none;
+            margin-bottom: 30px;
+        }
+
+        .option.selected.loading::after {
+            content: '森林正在轻声与你对话.';
+            animation: loading 1.5s infinite;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @keyframes loading {
+            0% { content: '森林正在轻声与你对话.'; }
+            33% { content: '森林正在轻声与你对话..'; }
+            66% { content: '森林正在轻声与你对话...'; }
+        }
+
+        @keyframes loading2 {
+            0% { content: '风在翻阅你的性格树叶，请稍候.'; }
+            33% { content: '风在翻阅你的性格树叶，请稍候..'; }
+            66% { content: '风在翻阅你的性格树叶，请稍候...'; }
+        }
+
+        @keyframes loading3 {
+            0% { content: '你走过了溪边，答案就藏在你的脚印里.'; }
+            33% { content: '你走过了溪边，答案就藏在你的脚印里..'; }
+            66% { content: '你走过了溪边，答案就藏在你的脚印里...'; }
+        }
+
+        @keyframes loading4 {
+            0% { content: '让我们慢慢呼吸，答案正在靠近.'; }
+            33% { content: '让我们慢慢呼吸，答案正在靠近..'; }
+            66% { content: '让我们慢慢呼吸，答案正在靠近...'; }
+        }
+
+        @keyframes loading5 {
+            0% { content: '树梢上的鸟儿正在讨论你的答案.'; }
+            33% { content: '树梢上的鸟儿正在讨论你的答案..'; }
+            66% { content: '树梢上的鸟儿正在讨论你的答案...'; }
+        }
+
+        @keyframes loading6 {
+            0% { content: '森林精灵悄悄跑去拿答案了，等等它回来～'; }
+            33% { content: '森林精灵悄悄跑去拿答案了，等等它回来～'; }
+            66% { content: '森林精灵悄悄跑去拿答案了，等等它回来～'; }
+        }
+
+        .option.selected.show-analysis::after {
+            opacity: 1;
+            transform: translateY(0);
+            animation: none;
+        }
+
+        .option.fade-out {
+            opacity: 0;
+            transform: translateY(20px);
+            pointer-events: none;
+        }
+
+        .analysis {
+            margin-top: 10px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: white;
+            font-size: 18px;
+            line-height: 1.6;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.5s ease;
+            max-width: 100%;
+        }
+
+        .analysis.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .large-image-container.show .dialog-box {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 4;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+        }
+
+        .overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .return-arrow {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: url('picture/点击鼠标.cur'), pointer;
+            z-index: 6;
+            opacity: 0;
+            transform: translateX(-100px);
+            transition: all 0.5s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .return-arrow::before {
+            content: '←';
+            color: white;
+            font-size: 30px;
+            font-weight: bold;
+        }
+
+        .return-arrow.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .return-arrow:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .initial-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 36px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                         0 0 20px rgba(255, 255, 255, 0.5),
+                         0 0 30px rgba(255, 255, 255, 0.3),
+                         2px 2px 4px rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            opacity: 1;
+            transition: opacity 2s ease;
+            letter-spacing: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="fade-overlay"></div>
+    <img src="picture/后景.png" alt="背景" class="background">
+    <img src="picture/前景.png" alt="前景" class="foreground">
+    <div class="poetic-text">闭上眼，风和树都在悄悄等你。</div>
+    <div class="start-button">开始旅行</div>
+    <div class="continue-button">继续前行</div>
+    <audio id="backgroundMusic" loop autoplay>
+        <source src="music/开头背景音.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="tearSound1">
+        <source src="music/纸片声1.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="tearSound2">
+        <source src="music/纸片声2.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="tearSound3">
+        <source src="music/纸片声3.mp3" type="audio/mpeg">
+    </audio>
+
+    <!-- 旅程图片容器 -->
+    <div id="journey-container"></div>
+    <div class="overlay"></div>
+    <div class="large-image-container"></div>
+    <div class="return-arrow"></div>
+
+    <script>
+        // 创建叶子和花朵
+        function createElements() {
+            const container = document.body;
+            
+            // 创建叶子
+            for (let i = 0; i < 50; i++) {
+                const leaf = document.createElement('div');
+                leaf.className = 'leaf';
+                
+                // 随机选择叶子形状
+                const shapes = ['triangle', 'diamond', 'parallelogram'];
+                const randomShape = shapes[Math.floor(Math.random() * shapes.length)];
+                leaf.classList.add(randomShape);
+                
+                // 随机位置
+                leaf.style.left = Math.random() * 100 + 'vw';
+                leaf.style.top = Math.random() * 100 + 'vh';
+                
+                // 随机动画时长和延迟
+                const duration = Math.random() * 5 + 5;
+                const delay = Math.random() * 5;
+                leaf.style.animation = `float ${duration}s infinite ${delay}s`;
+                
+                // 随机透明度和大小
+                leaf.style.opacity = Math.random() * 0.5 + 0.5;
+                const size = Math.random() * 20 + 20; // 20-40px
+                leaf.style.width = size + 'px';
+                leaf.style.height = size + 'px';
+                
+                container.appendChild(leaf);
+            }
+
+            // 创建花朵
+            for (let i = 0; i < 15; i++) {
+                const flower = document.createElement('div');
+                flower.className = 'flower';
+                
+                // 随机位置
+                flower.style.left = Math.random() * 100 + 'vw';
+                flower.style.top = Math.random() * 100 + 'vh';
+                flower.style.animation = `float ${Math.random() * 5 + 5}s infinite`;
+                flower.style.opacity = Math.random() * 0.5 + 0.5;
+                container.appendChild(flower);
+            }
+        }
+
+        // 创建旅程图片
+        function createJourneyImages() {
+            const container = document.getElementById('journey-container');
+            
+            // 创建6张图片
+            for (let i = 1; i <= 6; i++) {
+                const img = document.createElement('img');
+                img.src = `picture/图${i}.png`;
+                img.className = 'journey-image';
+                img.alt = `Journey Image ${i}`;
+                container.appendChild(img);
+            }
+
+            // 图片对应的文字和问题
+            const imageTexts = [
+                '"你站在林外，<br>风从树间飘来，<br>像是在邀请你靠近。"',
+                '"脚下的青苔柔软得<br>像某种温柔的语言。"',
+                '"溪水低声诉说，<br>你听懂了它的宁静。"',
+                '"屋子里没有人，<br>却点亮了一盏灯，<br>好像等你很久。"',
+                '"你不再只是走在林中，<br>你就是这片森林的一部分。"',
+                '"闭上眼，<br>风与叶的低语<br>会带你继续前行。"'
+            ];
+
+            const questions = [
+                {
+                    question: "Q1. 你走进森林的第一反应是什么？",
+                    options: [
+                        "A. 呼吸变得缓慢，想静静地感受一切",
+                        "B. 环顾四周，观察路径和环境",
+                        "C. 想去探索深处，看看有没有未知生物",
+                        "D. 立刻掏出相机，想记录下这份美丽"
+                    ]
+                },
+                {
+                    question: "Q2. 如果你是森林中的一种植物，你觉得你是哪种？",
+                    options: [
+                        "A. 青苔：不起眼但能在角落顽强生长",
+                        "B. 白桦树：高大而温柔，守护他人",
+                        "C. 风中蒲公英：随风而动，不受拘束",
+                        "D. 森林中的蘑菇：神秘又不易被看透"
+                    ]
+                },
+                {
+                    question: "Q3. 森林中传来动物的叫声，你觉得那是什么？",
+                    options: [
+                        "A. 是鸟儿在唱歌，像一首森林的早安曲",
+                        "B. 是狐狸在沟通，像是讲着一个秘密故事",
+                        "C. 是某种你从未听过的动物，让你充满好奇",
+                        "D. 你听不清，但觉得那是一种来自远古的回声"
+                    ]
+                },
+                {
+                    question: "Q4. 你走进森林深处的小木屋，最想做的第一件事是？",
+                    options: [
+                        "A. 在厨房里泡一壶热茶，和朋友分享",
+                        "B. 找一个角落靠窗的位置静静发呆",
+                        "C. 打开门窗，让阳光和风自由流动",
+                        "D. 翻开书架上的旧书，沉浸在文字里"
+                    ]
+                },
+                {
+                    question: "Q5. 你想和哪种森林动物成为朋友？",
+                    options: [
+                        "A. 一只聪明的猫头鹰",
+                        "B. 一只灵巧的狐狸",
+                        "C. 一只快乐的小鹿",
+                        "D. 一只安静的乌龟"
+                    ]
+                },
+                {
+                    question: "Q6. 你看到一条分岔小路，你会选择：",
+                    options: [
+                        "A. 通往阳光洒落的开阔草地",
+                        "B. 一条曲折但被苔藓覆盖的小道",
+                        "C. 一条几乎被藤蔓遮挡的神秘小径",
+                        "D. 原地坐下，不走了，只想静静待着"
+                    ]
+                }
+            ];
+
+            // 为每张图片添加点击事件
+            const images = document.querySelectorAll('.journey-image');
+            const tearSounds = [
+                document.getElementById('tearSound1'),
+                document.getElementById('tearSound2'),
+                document.getElementById('tearSound3'),
+                document.getElementById('tearSound2'),
+                document.getElementById('tearSound1'),
+                document.getElementById('tearSound3')
+            ];
+            
+            const largeImageContainer = document.querySelector('.large-image-container');
+            const overlay = document.querySelector('.overlay');
+            const returnArrow = document.querySelector('.return-arrow');
+            
+            images.forEach((img, index) => {
+                img.addEventListener('click', function() {
+                    // 播放对应的撕纸声
+                    const sound = tearSounds[index];
+                    sound.currentTime = 0;
+                    sound.play();
+                    
+                    // 添加掉落动画
+                    this.classList.add('fall');
+                    
+                    // 创建并显示大图和对话框
+                    setTimeout(() => {
+                        // 随机生成倾斜角度（-10到10度之间）
+                        const tiltAngle = (Math.random() * 20 - 10);
+                        largeImageContainer.style.setProperty('--tilt-angle', `${tiltAngle}deg`);
+                        
+                        largeImageContainer.innerHTML = `
+                            <img src="${this.src}" class="large-image" alt="Large Journey Image">
+                            <div class="dialog-box">
+                                ${imageTexts[index].replace(/<br>/g, '\n')}
+                                <div class="question-box">
+                                    <div class="question">${questions[index].question}</div>
+                                    ${questions[index].options.map(option => 
+                                        `<div class="option">${option}</div>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                        `;
+                        largeImageContainer.classList.add('show');
+                        overlay.classList.add('show');
+                        returnArrow.classList.add('show');
+
+                        // 添加选项点击事件
+                        const options = largeImageContainer.querySelectorAll('.option');
+                        options.forEach(option => {
+                            option.addEventListener('click', async function() {
+                                // 移除其他选项的点击事件
+                                options.forEach(opt => {
+                                    opt.style.pointerEvents = 'none';
+                                });
+
+                                // 添加选中效果
+                                this.classList.add('selected');
+
+                                // 隐藏问题和未选中的选项
+                                const question = this.parentElement.querySelector('.question');
+                                question.classList.add('fade-out');
+                                
+                                options.forEach(opt => {
+                                    if (opt !== this) {
+                                        opt.classList.add('fade-out');
+                                    }
+                                });
+
+                                // 调用 DeepSeek API 获取解析
+                                this.classList.add('loading');
+                                this.style.animation = `loading${index + 1} 1.5s infinite`;
+                                try {
+                                    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'Authorization': 'Bearer sk-0844fdc70dc94568b44d2101df07b50d'
+                                        },
+                                        body: JSON.stringify({
+                                            model: 'deepseek-chat',
+                                            messages: [{
+                                                role: 'user',
+                                                content: `请分析这个选择：问题：${questions[index].question}，选择：${this.textContent}。请用温暖、诗意的语言，从心理学的角度分析这个选择反映了什么样的性格特点或内心世界。分析请控制在250字以内。在回答中适当添加一些相关的emoji表情，比如🌲🌿🍃🌙✨等自然相关的emoji。`
+                                            }]
+                                        })
+                                    });
+
+                                    const data = await response.json();
+                                    if (data.choices && data.choices[0]) {
+                                        this.setAttribute('data-analysis', data.choices[0].message.content);
+                                    } else {
+                                        this.setAttribute('data-analysis', '解析生成中...');
+                                    }
+                                } catch (error) {
+                                    console.error('Error fetching analysis:', error);
+                                    this.setAttribute('data-analysis', '解析生成中...');
+                                }
+
+                                // 显示解析
+                                setTimeout(() => {
+                                    this.classList.remove('loading');
+                                    this.classList.add('show-analysis');
+                                }, 100);
+                            });
+                        });
+                    }, 2000);
+                });
+            });
+
+            // 点击返回箭头时隐藏大图和遮罩
+            returnArrow.addEventListener('click', function() {
+                largeImageContainer.classList.remove('show');
+                overlay.classList.remove('show');
+                this.classList.remove('show');
+            });
+        }
+
+        // 页面加载时创建元素
+        window.addEventListener('load', () => {
+            createElements();
+            createJourneyImages();
+            // 显示诗意文字
+            setTimeout(() => {
+                document.querySelector('.poetic-text').classList.add('show');
+            }, 500);
+
+            // 设置并播放背景音乐
+            const backgroundMusic = document.getElementById('backgroundMusic');
+            backgroundMusic.currentTime = 3; // 从第3秒开始播放
+            backgroundMusic.volume = 0.5;
+            
+            // 尝试自动播放
+            const playMusic = async () => {
+                try {
+                    await backgroundMusic.play();
+                } catch (error) {
+                    console.log('自动播放被阻止，正在重试...');
+                    setTimeout(playMusic, 1000); // 1秒后重试
+                }
+            };
+            
+            playMusic();
+        });
+
+        // 点击按钮跳转
+        document.querySelector('.start-button').addEventListener('click', function() {
+            // 隐藏开始按钮和诗意文字
+            this.classList.add('hide');
+            document.querySelector('.poetic-text').classList.remove('show');
+            
+            // 添加过渡效果
+            document.querySelector('.background').classList.add('darken');
+            document.querySelector('.foreground').classList.add('zoom');
+            
+            // 依次显示图片
+            const images = document.querySelectorAll('.journey-image');
+            images.forEach((img, index) => {
+                setTimeout(() => {
+                    img.classList.add('show');
+                }, index * 300); // 每300ms显示一张图片
+            });
+            
+            // 显示继续按钮
+            setTimeout(() => {
+                document.querySelector('.continue-button').classList.add('show');
+            }, 2000); // 2秒后显示继续按钮
+        });
+
+        // 点击继续按钮跳转
+        document.querySelector('.continue-button').addEventListener('click', function() {
+            // 淡出背景音乐
+            const backgroundMusic = document.getElementById('backgroundMusic');
+            const fadeOutInterval = setInterval(() => {
+                if (backgroundMusic.volume > 0.1) {
+                    backgroundMusic.volume -= 0.1;
+                } else {
+                    backgroundMusic.pause();
+                    clearInterval(fadeOutInterval);
+                }
+            }, 100);
+
+            // 激活淡入黑色效果
+            const overlay = document.querySelector('.fade-overlay');
+            overlay.classList.add('active');
+            
+            // 等待渐变动画完成后跳转
+            setTimeout(() => {
+                window.location.href = 'index2.html';
+            }, 2000); // 2秒后跳转，与CSS过渡时间匹配
+        });
+    </script>
+</body>
+</html> 

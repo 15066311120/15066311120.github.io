@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mozart Eine kleine Nachtmusik - Semi-Conductor</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose@0.0.7"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: url('C:/Users/koala/Desktop/新建文件夹 (3)/picture/鼠标.cur') 0 0, auto;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #1a237e;
+            background-image: url('picture/forest-bg.jpg.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            font-family: Arial, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+
+        .main-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh; /* 修改为100vh，因为移除了header */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            background-color: rgba(0, 0, 0, 0.5); /* 添加半透明黑色背景，使内容更清晰 */
+        }
+
+        .camera-container {
+            position: absolute;
+            width: 320px;
+            height: 240px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 3px solid white;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+            z-index: 3;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 1;
+            transition: opacity 0.3s ease;
+        }
+
+        #webcam {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* 水平翻转摄像头画面 */
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .orchestra-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .section {
+            position: absolute;
+            width: 180px;
+            height: 240px;
+            background-color: transparent;
+            border-radius: 10px;
+            padding: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            cursor: url('C:/Users/koala/Desktop/新建文件夹 (3)/picture/点击鼠标.cur'), pointer;
+            pointer-events: auto;
+            user-select: none;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .section:hover {
+            transform: scale(1.1) rotate(5deg);
+            filter: brightness(1.2);
+        }
+
+        .section.active {
+            transform: scale(1.1);
+            filter: brightness(1.2);
+        }
+
+        .section.dragging {
+            z-index: 1000;
+            opacity: 0.8;
+            transform: scale(1.05);
+        }
+
+        /* Initial positions */
+        .section-1 { 
+            top: 55%; 
+            right: 5%; 
+            background-image: url('picture/bird.png');
+        }
+        .section-2 { 
+            top: 15%; 
+            left: 25%; 
+            background-image: url('picture/cricket.png');
+        }
+        .section-3 { 
+            top: 15%; 
+            right: 25%; 
+            background-image: url('picture/frog.png');
+        }
+        .section-4 { 
+            top: 55%; 
+            left: 25%; 
+            background-image: url('picture/grouse.png');
+        }
+        .section-5 { 
+            top: 55%; 
+            right: 25%; 
+            background-image: url('picture/rain.png');
+        }
+
+        .instrument {
+            display: none;
+        }
+
+        .status {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            padding: 15px 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            border-radius: 5px;
+            z-index: 10;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status.error {
+            background-color: rgba(255, 0, 0, 0.8);
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-top: 3px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #debug-info {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .instructions {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px;
+            background-color: rgba(0, 0, 0, 0.7);
+            border-radius: 5px;
+            z-index: 10;
+        }
+
+        .start-prompt {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 24px;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+            z-index: 5;
+            animation: blink 1.5s infinite;
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+
+        /* 添加音量控制样式 */
+        .volume-control {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+
+        .volume-control label {
+            color: white;
+            font-size: 14px;
+        }
+
+        .volume-control input[type="range"] {
+            width: 100px;
+        }
+
+        .volume-icon {
+            width: 20px;
+            height: 20px;
+            background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>');
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        .fade-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: black;
+            opacity: 1;
+            pointer-events: none;
+            z-index: 9999;
+            transition: opacity 2s ease;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        .initial-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 36px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                         0 0 20px rgba(255, 255, 255, 0.5),
+                         0 0 30px rgba(255, 255, 255, 0.3);
+            z-index: 10000;
+            opacity: 1;
+            transition: opacity 2s ease;
+            letter-spacing: 4px;
+        }
+
+        .leaf-foreground {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: auto;
+            z-index: 4;
+            pointer-events: none;
+        }
+
+        .animal-image {
+            position: fixed;
+            width: 200px;
+            height: auto;
+            z-index: 3;
+            cursor: url('C:/Users/koala/Desktop/新建文件夹 (3)/picture/点击鼠标.cur'), pointer;
+            transition: all 0.3s ease;
+            filter: brightness(1);
+        }
+
+        .animal-image:hover, .animal-image.active {
+            transform: scale(1.1);
+            filter: brightness(1.2);
+        }
+
+        .elephant {
+            top: 15%;
+            left: 5%;
+        }
+
+        .tiger {
+            top: 15%;
+            right: 5%;
+        }
+
+        .monkey {
+            top: 55%;
+            left: 5%;
+        }
+
+        .image-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            cursor: url('picture/点击鼠标.cur'), pointer;
+        }
+
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0) 100%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                        0 0 20px rgba(255, 255, 255, 0.5),
+                        0 0 30px rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes fireflyFloat {
+            0% {
+                transform: translate(0, 0);
+                opacity: 0.8;
+            }
+            25% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+            75% {
+                opacity: 0.9;
+            }
+            100% {
+                transform: translate(var(--tx), var(--ty));
+                opacity: 0.8;
+            }
+        }
+
+        @keyframes fireflyGlow {
+            0% {
+                box-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                           0 0 20px rgba(255, 255, 255, 0.5),
+                           0 0 30px rgba(255, 255, 255, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 15px rgba(255, 255, 255, 0.9),
+                           0 0 25px rgba(255, 255, 255, 0.7),
+                           0 0 35px rgba(255, 255, 255, 0.5);
+            }
+            100% {
+                box-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                           0 0 20px rgba(255, 255, 255, 0.5),
+                           0 0 30px rgba(255, 255, 255, 0.3);
+            }
+        }
+
+        .particle-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .final-text {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 36px;
+            text-align: center;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8),
+                         0 0 20px rgba(255, 255, 255, 0.5),
+                         0 0 30px rgba(255, 255, 255, 0.3);
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 2s ease;
+            line-height: 1.5;
+            letter-spacing: 4px;
+        }
+
+        .final-text.show {
+            opacity: 1;
+        }
+
+        .return-button {
+            position: fixed;
+            bottom: 20%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 24px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid white;
+            border-radius: 10px;
+            cursor: url('picture/点击鼠标.cur'), pointer;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.5s ease;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .return-button.show {
+            opacity: 1;
+        }
+
+        .return-button:hover {
+            background: rgba(0, 0, 0, 0.9);
+            transform: translateX(-50%) scale(1.05);
+        }
+
+        .final-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: black;
+            z-index: 999;
+            opacity: 0;
+            transition: opacity 7s ease; /* 增加过渡时间到7秒 */
+            pointer-events: none;
+        }
+
+        .final-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <audio id="backgroundMusic" loop>
+        <source src="music/背景音乐.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="cricketSound">
+        <source src="music/蝈蝈.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="rainSound">
+        <source src="music/下雨.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="frogSound">
+        <source src="music/青蛙.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="birdSound">
+        <source src="music/鸟.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="grouseSound" loop>
+        <source src="music/松鸡.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="monkeySound">
+        <source src="C:/Users/koala/Desktop/新建文件夹 (3)/music/猴子叫声 .mp3" type="audio/mpeg">
+    </audio>
+    <audio id="tigerSound">
+        <source src="C:/Users/koala/Desktop/新建文件夹 (3)/music/老虎低吼的声音.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="elephantSound">
+        <source src="C:/Users/koala/Desktop/新建文件夹 (3)/music/_大象温顺的叫声音效.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="volume-control">
+        <div class="volume-icon"></div>
+        <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5">
+        <label for="volumeSlider">音量</label>
+    </div>
+
+    <div class="main-container">
+        <img src="C:/Users/koala/Desktop/新建文件夹 (3)/picture/树叶前景.png" alt="树叶前景" class="leaf-foreground">
+        <img src="C:/Users/koala/Desktop/新建文件夹 (3)/picture/elephant.png" alt="大象" class="animal-image elephant">
+        <img src="C:/Users/koala/Desktop/新建文件夹 (3)/picture/tiger.png" alt="老虎" class="animal-image tiger">
+        <img src="C:/Users/koala/Desktop/新建文件夹 (3)/picture/monkey.png" alt="猴子" class="animal-image monkey">
+        <div class="camera-container">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+        </div>
+        
+        <div class="orchestra-container">
+            <div class="section section-1" data-x="0" data-y="0"></div>
+            <div class="section section-2" data-x="0" data-y="0"></div>
+            <div class="section section-3" data-x="0" data-y="0"></div>
+            <div class="section section-4" data-x="0" data-y="0"></div>
+            <div class="section section-5" data-x="0" data-y="0"></div>
+        </div>
+    </div>
+
+    <div class="status">
+        <div class="loading-spinner"></div>
+        <span>正在加载模型...</span>
+    </div>
+    <div id="debug-info"></div>
+
+    <div class="instructions">
+        使用说明：<br>
+        1. 将手放入摄像头视野中<br>
+        2. 移动手来控制画面位置<br>
+        3. 握拳可以抓取声音
+    </div>
+
+    <div class="start-prompt">点击开始体验</div>
+
+    <div class="fade-overlay"></div>
+    <div class="initial-text">深呼吸，森林深处就在你面前</div>
+
+    <div class="particle-container"></div>
+
+    <div class="final-overlay"></div>
+    <div class="final-text">你听见了森林的声音，<br>也听见了你自己。</div>
+    <div class="return-button">我想再旅行一次</div>
+
+    <script>
+        let handposeModel;
+        let video;
+        let canvas;
+        let ctx;
+        let sections;
+        let status;
+        let statusText;
+        let selectedSection = null;
+        let isDragging = false;
+        let cameraContainer;
+        let lastHandPosition = null;
+        let smoothingFactor = 0.3;
+        let isModelLoaded = false;
+        let isCameraReady = false;
+        let backgroundMusic;
+        let volumeSlider;
+        let cricketSound;
+        let rainSound;
+        let frogSound;
+        let birdSound;
+        let grouseSound;
+        let monkeySound;
+        let tigerSound;
+        let elephantSound;
+        let isCricketPlaying = false;
+        let isRainPlaying = false;
+        let isFrogPlaying = false;
+        let isBirdPlaying = false;
+        let isGrousePlaying = false;
+        let isMonkeyPlaying = false;
+        let isTigerPlaying = false;
+        let isElephantPlaying = false;
+        let recordedSounds = 0;
+        let touchTimers = {};
+        let handHoverTimers = {};
+        let recordedImages = new Set();
+        let isLeavingForest = false;
+
+        function updateStatus(message, isError = false) {
+            const statusElement = document.querySelector('.status');
+            const spinner = statusElement.querySelector('.loading-spinner');
+            const textElement = statusElement.querySelector('span');
+            
+            textElement.textContent = message;
+            
+            if (isError) {
+                statusElement.classList.add('error');
+                spinner.style.display = 'none';
+            } else {
+                statusElement.classList.remove('error');
+                spinner.style.display = 'inline-block';
+            }
+        }
+
+        async function setupCamera() {
+            try {
+                updateStatus('正在启动摄像头...');
+                video = document.getElementById('webcam');
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    'video': { 
+                        width: 320, 
+                        height: 240,
+                        facingMode: 'user'
+                    }
+                });
+                video.srcObject = stream;
+
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        isCameraReady = true;
+                        updateStatus('摄像头已就绪，正在加载模型...');
+                        resolve(video);
+                    };
+                });
+            } catch (error) {
+                updateStatus('无法访问摄像头: ' + error.message, true);
+                throw error;
+            }
+        }
+
+        function setupCanvas() {
+            canvas = document.getElementById('canvas');
+            canvas.width = 320;
+            canvas.height = 240;
+            ctx = canvas.getContext('2d');
+        }
+
+        async function setupHandpose() {
+            try {
+                updateStatus('正在加载手势识别模型...');
+                handposeModel = await handpose.load();
+                console.log('模型加载成功');
+                isModelLoaded = true;
+                updateStatus('手势识别已就绪！请将手放入摄像头视野中');
+            } catch (error) {
+                console.error('模型加载错误:', error);
+                updateStatus('模型加载失败: ' + error.message, true);
+                throw error;
+            }
+        }
+
+        function lerp(start, end, factor) {
+            return start + (end - start) * factor;
+        }
+
+        function updateCameraPosition(handCenter) {
+            const container = document.querySelector('.main-container');
+            const rect = container.getBoundingClientRect();
+
+            // 如果是第一次检测到手，直接设置位置
+            if (!lastHandPosition) {
+                lastHandPosition = handCenter;
+            }
+
+            // 平滑插值计算新位置
+            const smoothX = lerp(lastHandPosition.x, handCenter.x, smoothingFactor);
+            const smoothY = lerp(lastHandPosition.y, handCenter.y, smoothingFactor);
+
+            // 更新上一次位置
+            lastHandPosition = { x: smoothX, y: smoothY };
+
+            // 计算相对于容器的位置
+            const relativeX = smoothX - rect.left;
+            const relativeY = smoothY - rect.top;
+            
+            // 计算摄像头容器的新位置，考虑边界
+            const maxX = rect.width - 320;
+            const maxY = rect.height - 240;
+            const newX = Math.max(0, Math.min(maxX, relativeX - 160));
+            const newY = Math.max(0, Math.min(maxY, relativeY - 120));
+
+            // 更新摄像头容器位置
+            cameraContainer.style.transform = `translate(${newX}px, ${newY}px)`;
+
+            return { x: smoothX, y: smoothY };
+        }
+
+        function startHandHoverTimer(element) {
+            const elementId = element.id || element.className;
+            if (!handHoverTimers[elementId]) {
+                handHoverTimers[elementId] = setTimeout(() => {
+                    if (!recordedImages.has(elementId)) {
+                        recordedImages.add(elementId);
+                        recordedSounds++;
+                        updatePromptText();
+                    }
+                }, 2000);
+            }
+        }
+
+        function clearHandHoverTimer(element) {
+            const elementId = element.id || element.className;
+            if (handHoverTimers[elementId]) {
+                clearTimeout(handHoverTimers[elementId]);
+                delete handHoverTimers[elementId];
+            }
+        }
+
+        async function detectHands() {
+            if (!isModelLoaded || !isCameraReady) {
+                requestAnimationFrame(detectHands);
+                return;
+            }
+
+            try {
+                const predictions = await handposeModel.estimateHands(video);
+                
+                if (predictions.length === 0) {
+                    if (status.textContent !== '未检测到手，请将手放入摄像头视野中') {
+                        updateStatus('未检测到手，请将手放入摄像头视野中');
+                    }
+                    cameraContainer.style.opacity = '1';
+                } else {
+                    if (status.textContent.includes('未检测到手')) {
+                        updateStatus('已检测到手！');
+                    }
+                    cameraContainer.style.opacity = '1';
+
+                    const hand = predictions[0];
+                    const landmarks = hand.landmarks;
+                    
+                    // 计算手的中心点
+                    const centerX = landmarks.reduce((sum, point) => sum + point[0], 0) / landmarks.length;
+                    const centerY = landmarks.reduce((sum, point) => sum + point[1], 0) / landmarks.length;
+
+                    // 将手的中心点从视频坐标转换到页面坐标，并反转X轴
+                    const rect = canvas.getBoundingClientRect();
+                    const mainContainer = document.querySelector('.main-container');
+                    const mainRect = mainContainer.getBoundingClientRect();
+                    
+                    // 计算手在摄像头中的相对位置（0-1范围）
+                    const relativeX = centerX / canvas.width;
+                    const relativeY = centerY / canvas.height;
+                    
+                    // 将相对位置映射到整个主容器
+                    const handCenter = {
+                        x: mainRect.width * (1 - relativeX) + mainRect.left,
+                        y: mainRect.height * relativeY + mainRect.top
+                    };
+
+                    // 如果已经点击了"离开森林"，不触发任何声音
+                    if (!isLeavingForest) {
+                        // 检查动物图片的交互
+                        const animalImages = document.querySelectorAll('.animal-image');
+                        animalImages.forEach(img => {
+                            const rect = img.getBoundingClientRect();
+                            if (handCenter.x >= rect.left && handCenter.x <= rect.right &&
+                                handCenter.y >= rect.top && handCenter.y <= rect.bottom) {
+                                img.classList.add('active');
+                                startHandHoverTimer(img);
+                                
+                                // 检查是否是猴子图片
+                                if (img.classList.contains('monkey')) {
+                                    if (!isMonkeyPlaying) {
+                                        monkeySound.currentTime = 0;
+                                        monkeySound.play();
+                                        isMonkeyPlaying = true;
+                                    }
+                                }
+                                // 检查是否是老虎图片
+                                if (img.classList.contains('tiger')) {
+                                    if (!isTigerPlaying) {
+                                        tigerSound.currentTime = 0;
+                                        tigerSound.play();
+                                        isTigerPlaying = true;
+                                    }
+                                }
+                                // 检查是否是大象图片
+                                if (img.classList.contains('elephant')) {
+                                    if (!isElephantPlaying) {
+                                        elephantSound.currentTime = 0;
+                                        elephantSound.play();
+                                        isElephantPlaying = true;
+                                    }
+                                }
+                            } else {
+                                img.classList.remove('active');
+                                clearHandHoverTimer(img);
+                                // 如果手离开猴子图片，停止播放
+                                if (img.classList.contains('monkey')) {
+                                    if (isMonkeyPlaying) {
+                                        monkeySound.pause();
+                                        isMonkeyPlaying = false;
+                                    }
+                                }
+                                // 如果手离开老虎图片，停止播放
+                                if (img.classList.contains('tiger')) {
+                                    if (isTigerPlaying) {
+                                        tigerSound.pause();
+                                        isTigerPlaying = false;
+                                    }
+                                }
+                                // 如果手离开大象图片，停止播放
+                                if (img.classList.contains('elephant')) {
+                                    if (isElephantPlaying) {
+                                        elephantSound.pause();
+                                        isElephantPlaying = false;
+                                    }
+                                }
+                            }
+                        });
+
+                        // 检查乐队图片的交互
+                        sections.forEach(section => {
+                            const rect = section.getBoundingClientRect();
+                            if (handCenter.x >= rect.left && handCenter.x <= rect.right &&
+                                handCenter.y >= rect.top && handCenter.y <= rect.bottom) {
+                                section.classList.add('active');
+                                startHandHoverTimer(section);
+                                
+                                // 检查是否是蝈蝈图片
+                                if (section.classList.contains('section-2')) {
+                                    if (!isCricketPlaying) {
+                                        cricketSound.currentTime = 0;
+                                        cricketSound.play();
+                                        isCricketPlaying = true;
+                                    }
+                                }
+                                // 检查是否是雨滴图片
+                                if (section.classList.contains('section-5')) {
+                                    if (!isRainPlaying) {
+                                        rainSound.currentTime = 0;
+                                        rainSound.play();
+                                        isRainPlaying = true;
+                                    }
+                                }
+                                // 检查是否是青蛙图片
+                                if (section.classList.contains('section-3')) {
+                                    if (!isFrogPlaying) {
+                                        frogSound.currentTime = 0;
+                                        frogSound.play();
+                                        isFrogPlaying = true;
+                                    }
+                                }
+                                // 检查是否是鸟图片
+                                if (section.classList.contains('section-1')) {
+                                    if (!isBirdPlaying) {
+                                        birdSound.currentTime = 0;
+                                        birdSound.play();
+                                        isBirdPlaying = true;
+                                    }
+                                }
+                                // 检查是否是松鸡图片
+                                if (section.classList.contains('section-4')) {
+                                    if (!isGrousePlaying) {
+                                        grouseSound.currentTime = 0;
+                                        grouseSound.play();
+                                        isGrousePlaying = true;
+                                    }
+                                }
+                            } else {
+                                section.classList.remove('active');
+                                clearHandHoverTimer(section);
+                                // 如果手离开蝈蝈图片，停止播放
+                                if (section.classList.contains('section-2')) {
+                                    if (isCricketPlaying) {
+                                        cricketSound.pause();
+                                        isCricketPlaying = false;
+                                    }
+                                }
+                                // 如果手离开雨滴图片，停止播放
+                                if (section.classList.contains('section-5')) {
+                                    if (isRainPlaying) {
+                                        rainSound.pause();
+                                        isRainPlaying = false;
+                                    }
+                                }
+                                // 如果手离开青蛙图片，停止播放
+                                if (section.classList.contains('section-3')) {
+                                    if (isFrogPlaying) {
+                                        frogSound.pause();
+                                        isFrogPlaying = false;
+                                    }
+                                }
+                                // 如果手离开鸟图片，停止播放
+                                if (section.classList.contains('section-1')) {
+                                    if (isBirdPlaying) {
+                                        birdSound.pause();
+                                        isBirdPlaying = false;
+                                    }
+                                }
+                                // 如果手离开松鸡图片，停止播放
+                                if (section.classList.contains('section-4')) {
+                                    if (isGrousePlaying) {
+                                        grouseSound.pause();
+                                        isGrousePlaying = false;
+                                    }
+                                }
+                            }
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('手势检测错误:', error);
+                updateStatus('手势检测出错，正在重试...', true);
+            }
+
+            requestAnimationFrame(detectHands);
+        }
+
+        async function init() {
+            try {
+                sections = document.querySelectorAll('.section');
+                status = document.querySelector('.status');
+                cameraContainer = document.querySelector('.camera-container');
+                
+                // 初始化音乐控制
+                backgroundMusic = document.getElementById('backgroundMusic');
+                volumeSlider = document.getElementById('volumeSlider');
+                cricketSound = document.getElementById('cricketSound');
+                rainSound = document.getElementById('rainSound');
+                frogSound = document.getElementById('frogSound');
+                birdSound = document.getElementById('birdSound');
+                grouseSound = document.getElementById('grouseSound');
+                monkeySound = document.getElementById('monkeySound');
+                tigerSound = document.getElementById('tigerSound');
+                elephantSound = document.getElementById('elephantSound');
+                
+                // 设置音量控制
+                volumeSlider.addEventListener('input', (e) => {
+                    const baseVolume = e.target.value;
+                    backgroundMusic.volume = baseVolume;
+                    cricketSound.volume = baseVolume * 2.0;
+                    rainSound.volume = baseVolume * 0.5;
+                    frogSound.volume = baseVolume * 0.5;
+                    birdSound.volume = baseVolume;
+                    grouseSound.volume = baseVolume * 2.0;
+                    monkeySound.volume = baseVolume;
+                    tigerSound.volume = baseVolume;
+                    elephantSound.volume = baseVolume;
+                });
+                
+                // 设置初始音量
+                const initialVolume = 0.5;
+                volumeSlider.value = initialVolume;
+                backgroundMusic.volume = initialVolume;
+                cricketSound.volume = initialVolume * 2.0;
+                rainSound.volume = initialVolume * 0.5;
+                frogSound.volume = initialVolume * 0.5;
+                birdSound.volume = initialVolume;
+                grouseSound.volume = initialVolume * 2.0;
+                monkeySound.volume = initialVolume;
+                tigerSound.volume = initialVolume;
+                elephantSound.volume = initialVolume;
+                
+                // 延迟后淡出初始画面
+                setTimeout(() => {
+                    document.querySelector('.fade-overlay').style.opacity = '0';
+                    document.querySelector('.initial-text').style.opacity = '0';
+                }, 3000); // 3秒后开始淡出
+                
+                // 尝试自动播放背景音乐
+                try {
+                    await backgroundMusic.play();
+                    updateStatus('背景音乐已开始播放');
+                } catch (error) {
+                    console.log('自动播放被阻止，需要用户交互');
+                    // 添加点击事件来启动音乐
+                    document.addEventListener('click', () => {
+                        backgroundMusic.play();
+                    }, { once: true });
+                }
+
+                setupCanvas();
+                await setupCamera();
+                await setupHandpose();
+                
+                detectHands();
+            } catch (error) {
+                console.error('初始化错误:', error);
+                updateStatus('初始化失败，请刷新页面重试', true);
+            }
+        }
+
+        window.onload = init;
+
+        // 添加调试信息显示
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'd') {
+                const debugInfo = document.getElementById('debug-info');
+                debugInfo.style.display = debugInfo.style.display === 'none' ? 'block' : 'none';
+                debugInfo.innerHTML = `
+                    摄像头状态: ${isCameraReady ? '已就绪' : '未就绪'}<br>
+                    模型状态: ${isModelLoaded ? '已加载' : '未加载'}<br>
+                    视频尺寸: ${video?.videoWidth || 0} x ${video?.videoHeight || 0}<br>
+                    Canvas尺寸: ${canvas?.width || 0} x ${canvas?.height || 0}
+                `;
+            }
+        });
+
+        // 为每张图片添加触摸事件
+        document.querySelectorAll('.animal-image').forEach(img => {
+            img.addEventListener('touchstart', function() {
+                const imgId = this.id;
+                touchTimers[imgId] = setTimeout(() => {
+                    if (!this.dataset.recorded) {
+                        this.dataset.recorded = 'true';
+                        recordedSounds++;
+                        updatePromptText();
+                    }
+                }, 1000);
+            });
+
+            img.addEventListener('touchend', function() {
+                const imgId = this.id;
+                if (touchTimers[imgId]) {
+                    clearTimeout(touchTimers[imgId]);
+                }
+            });
+
+            img.addEventListener('touchcancel', function() {
+                const imgId = this.id;
+                if (touchTimers[imgId]) {
+                    clearTimeout(touchTimers[imgId]);
+                }
+            });
+        });
+
+        function createParticles(element) {
+            const rect = element.getBoundingClientRect();
+            const particleContainer = document.querySelector('.particle-container');
+            const particleCount = 40; // 增加粒子数量
+            
+            for (let i = 0; i < particleCount; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                
+                // 随机初始位置
+                const x = rect.left + Math.random() * rect.width;
+                const y = rect.top + Math.random() * rect.height;
+                
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                
+                // 设置初始动画
+                updateParticlePosition(particle);
+                
+                particleContainer.appendChild(particle);
+            }
+        }
+
+        function updateParticlePosition(particle) {
+            // 增加移动距离和速度
+            const angle = Math.random() * Math.PI * 2;
+            const distance = 100 + Math.random() * 200; // 增加移动距离
+            const tx = Math.cos(angle) * distance;
+            const ty = Math.sin(angle) * distance;
+            
+            particle.style.setProperty('--tx', `${tx}px`);
+            particle.style.setProperty('--ty', `${ty}px`);
+            
+            // 减少动画时长，使移动更快
+            const duration = 1.5 + Math.random() * 1; // 减少动画时长
+            particle.style.animation = `fireflyFloat ${duration}s ease-in-out infinite, fireflyGlow 1.5s ease-in-out infinite`;
+            
+            // 动画结束后重新设置新位置
+            particle.addEventListener('animationend', () => {
+                const currentX = parseFloat(particle.style.left);
+                const currentY = parseFloat(particle.style.top);
+                particle.style.left = `${currentX + tx}px`;
+                particle.style.top = `${currentY + ty}px`;
+                updateParticlePosition(particle);
+            });
+        }
+
+        function fadeOutImages() {
+            const images = document.querySelectorAll('.animal-image, .section');
+            const camera = document.querySelector('.camera-container');
+            
+            // 先淡出图片
+            images.forEach(img => {
+                createParticles(img);
+                img.style.opacity = '0';
+                img.style.transition = 'opacity 2s ease-out';
+            });
+
+            // 图片淡出后淡出摄像头
+            setTimeout(() => {
+                camera.style.opacity = '0';
+                camera.style.transition = 'opacity 3s ease-out';
+
+                // 2秒后显示黑色遮罩和文字
+                setTimeout(() => {
+                    document.querySelector('.final-overlay').classList.add('show');
+                    document.querySelector('.final-text').classList.add('show');
+                    
+                    // 再等待2秒后显示返回按钮
+                    setTimeout(() => {
+                        document.querySelector('.return-button').classList.add('show');
+                    }, 2000);
+                }, 2000);
+            }, 2000);
+        }
+
+        function stopAllSounds() {
+            isLeavingForest = true;
+            
+            // 停止所有动物声音
+            if (isMonkeyPlaying) {
+                monkeySound.pause();
+                isMonkeyPlaying = false;
+            }
+            if (isTigerPlaying) {
+                tigerSound.pause();
+                isTigerPlaying = false;
+            }
+            if (isElephantPlaying) {
+                elephantSound.pause();
+                isElephantPlaying = false;
+            }
+            
+            // 停止所有乐团声音
+            if (isCricketPlaying) {
+                cricketSound.pause();
+                isCricketPlaying = false;
+            }
+            if (isRainPlaying) {
+                rainSound.pause();
+                isRainPlaying = false;
+            }
+            if (isFrogPlaying) {
+                frogSound.pause();
+                isFrogPlaying = false;
+            }
+            if (isBirdPlaying) {
+                birdSound.pause();
+                isBirdPlaying = false;
+            }
+            if (isGrousePlaying) {
+                grouseSound.pause();
+                isGrousePlaying = false;
+            }
+        }
+
+        function updatePromptText() {
+            const prompt = document.querySelector('.start-prompt');
+            if (recordedSounds === 8) {
+                prompt.textContent = '离开森林';
+                // 添加点击事件
+                prompt.addEventListener('click', function() {
+                    stopAllSounds(); // 停止所有声音
+                    fadeOutImages();
+                }, { once: true });
+            } else if (prompt.textContent === '点击开始体验') {
+                prompt.textContent = `已记录声音数量是 ${recordedSounds}`;
+            } else {
+                prompt.textContent = `已记录声音数量是 ${recordedSounds}`;
+            }
+        }
+
+        // 点击提示文字时
+        document.querySelector('.start-prompt').addEventListener('click', function() {
+            if (this.textContent === '点击开始体验') {
+                this.textContent = `已记录声音数量是 ${recordedSounds}`;
+            }
+        });
+
+        // 添加返回按钮点击事件
+        document.querySelector('.return-button').addEventListener('click', function() {
+            // 淡出背景音乐
+            const fadeOutInterval = setInterval(() => {
+                if (backgroundMusic.volume > 0.1) {
+                    backgroundMusic.volume -= 0.1;
+                } else {
+                    backgroundMusic.volume = 0;
+                    clearInterval(fadeOutInterval);
+                    // 音乐完全淡出后跳转页面
+                    window.location.href = 'index1.html';
+                }
+            }, 100); // 每100毫秒降低音量
+
+            // 如果音乐还没开始播放，直接跳转
+            if (backgroundMusic.volume === 0) {
+                window.location.href = 'index1.html';
+            }
+        });
+    </script>
+</body>
+</html> 
